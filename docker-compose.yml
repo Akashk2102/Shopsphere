@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shopsphere-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: shopsphere
+      POSTGRES_USER: shopsphere_user
+      POSTGRES_PASSWORD: shopsphere_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopsphere_user -d shopsphere"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shopsphere-backend
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: shopsphere
+      DB_USER: shopsphere_user
+      DB_PASSWORD: shopsphere_pass
+      SPRING_PROFILES_ACTIVE: dev
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: shopsphere-frontend
+    restart: on-failure
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "3000:80"
+
+volumes:
+  postgres_data:
+    driver: local
